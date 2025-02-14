@@ -1,0 +1,20 @@
+# ---------------------------
+# Market Cap-Adjusted Quantity Index
+# ---------------------------
+
+# Inputs  
+input length = 20;
+input marketCap = 1; #1e9;  # Replace with actual market cap if available
+input totalSharesOutstanding =7;# 1e7;  # Replace with real data if accessible
+
+# Compute Free-Float Adjusted Volume  
+def freeFloatVolume = volume * (marketCap / totalSharesOutstanding);
+
+# Compute Free-Float Adjusted Volume Change Over Time  
+def startVolume = freeFloatVolume[length];
+def freeFloatVolumeChange = freeFloatVolume / startVolume;
+
+# Plot Free-Float Quantity Index  
+plot FreeFloatQuantityIndex = freeFloatVolumeChange;
+FreeFloatQuantityIndex.SetDefaultColor(Color.PINK);
+FreeFloatQuantityIndex.SetLineWeight(2);

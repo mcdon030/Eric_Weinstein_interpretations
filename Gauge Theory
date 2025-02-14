@@ -1,0 +1,16 @@
+declare lower;
+
+input referenceSymbol = "SPY";
+input length = 14;
+
+def refClose = close(referenceSymbol);
+def ratio = close / refClose;
+def strength = Average(ratio, length);
+
+plot RelativeStrength = strength;
+RelativeStrength.SetDefaultColor(Color.ORANGE);
+RelativeStrength.SetLineWeight(2);
+
+#plot ZeroLine = 1;
+#ZeroLine.SetDefaultColor(Color.GRAY);
+#ZeroLine.SetStyle(Curve.SHORT_DASH);

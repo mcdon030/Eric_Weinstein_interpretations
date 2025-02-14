@@ -1,0 +1,121 @@
+# ---------------------------
+# True Hidden Markov Model (HMM) for Volatility Regimes
+# ---------------------------
+declare lower;
+# Inputs
+input Threshold = 0.01;  # Defines uptrend/downtrend threshold
+input Lookback = 500;  # Lookback period for training
+input length = 20;  # Lookback period for volatility
+input atrMultiplier = 1.5;  # ATR-based transition weight
+input stdDevMultiplier = 1.5;  # Standard deviation-based transition weight
+input bbWidthMultiplier = 1.5;  # Bollinger Band Width-based transition weight
+input stateSmoothing = 0.8;  # Smoothing factor for probability estimation
+
+# ---------------------------
+# Step 1: Compute Volatility Indicators
+# ---------------------------
+
+# ATR-Based Volatility
+def atr = ATR(length);
+def avgATR = Average(atr, length * 2);
+def atrVolatility = atr / avgATR;  # ATR percentile relative to historical volatility
+
+# Rolling Standard Deviation
+def stdDev = StDev(close, length);
+def avgStdDev = Average(stdDev, length * 2);
+def stdDevVolatility = stdDev / avgStdDev;
+
+# Bollinger Band Width
+def bbBasis = Average(close, length);
+def bbDeviation = 2 * StDev(close, length);
+def bbWidth = (bbDeviation * 2) / bbBasis;
+
+# Compute Weighted Transition Factor (Higher = Stronger Volatility Shift)
+def volatilityWeight = (atrVolatility * atrMultiplier + stdDevVolatility * stdDevMultiplier + bbWidth * bbWidthMultiplier) / 3;
+
+# Define Volatility Regimes
+def highVolatility = volatilityWeight > 1.2;
+def lowVolatility = volatilityWeight < 0.8;
+def neutralVolatility = !highVolatility and !lowVolatility;
+
+# ---------------------------
+# Step 2: Hidden Markov Model State Estimation
+# ---------------------------
+
+# Observations (Price Change)
+def priceChange = close - close[1];
+
+# Define Initial Hidden States (1 = Trend, -1 = Mean Reverting, 0 = Neutral)
+def currentState = if priceChange > Threshold then 1 else if priceChange < -Threshold then -1 else 0;
+
+# Compute Smoothed Probability of Market State
+def smoothedState = CompoundValue(1, stateSmoothing * smoothedState[1] + (1 - stateSmoothing) * currentState, 0);
+
+# Compute Transition Probabilities Based on Volatility
+def transitionsTrendToRevert = fold i1 = 1 to Lookback
+    with count1
+    do count1 + (if smoothedState == -1 and GetValue(smoothedState, i1) == 1 then volatilityWeight else 0);
+def transitionsRevertToTrend = fold i2 = 1 to Lookback
+    with count2
+    do count2 + (if smoothedState == 1 and GetValue(smoothedState, i2) == -1 then volatilityWeight else 0);
+def transitionsNeutralToTrend = fold i3 = 1 to Lookback
+    with count3
+    do count3 + (if smoothedState == 1 and GetValue(smoothedState, i3) == 0 then volatilityWeight else 0);
+def transitionsNeutralToRevert = fold i4 = 1 to Lookback
+    with count4
+    do count4 + (if smoothedState == -1 and GetValue(smoothedState, i4) == 0 then volatilityWeight else 0);
+
+# Normalize Transition Probabilities
+def totalTransitions = transitionsTrendToRevert + transitionsRevertToTrend + transitionsNeutralToTrend + transitionsNeutralToRevert;
+def probTrendToRevert = if totalTransitions > 0 then transitionsTrendToRevert / totalTransitions else probTrendToRevert[1];
+def probRevertToTrend = if totalTransitions > 0 then transitionsRevertToTrend / totalTransitions else probRevertToTrend[1];
+def probNeutralToTrend = if totalTransitions > 0 then transitionsNeutralToTrend / totalTransitions else probNeutralToTrend[1];
+def probNeutralToRevert = if totalTransitions > 0 then transitionsNeutralToRevert / totalTransitions else probNeutralToRevert[1];
+
+# Compute Expected Price Changes Per State
+def avgPriceChangeTrend = fold iu = 1 to Lookback
+    with sumu
+    do sumu + (if GetValue(smoothedState, iu) == 1 then GetValue(priceChange, iu) else 0) / Lookback;
+def avgPriceChangeRevert = fold id = 1 to Lookback
+    with sumd
+    do sumd + (if GetValue(smoothedState, id) == -1 then GetValue(priceChange, id) else 0) / Lookback;
+
+# Predict Market State Using Smoothed Probabilities
+def predictedNextState = if probTrendToRevert > probRevertToTrend and probTrendToRevert > probNeutralToTrend then -1
+                         else if probRevertToTrend > probTrendToRevert and probRevertToTrend > probNeutralToRevert then 1
+                         else 0;
+
+# ---------------------------
+# Step 3: Visualization
+# ---------------------------
+
+# Volatility Regime Histogram
+plot VolatilityRegime = if highVolatility then 2 else if lowVolatility then 0 else 1;
+VolatilityRegime.SetPaintingStrategy(PaintingStrategy.HISTOGRAM);
+VolatilityRegime.SetLineWeight(3);
+VolatilityRegime.DefineColor("HighVol", Color.RED);
+VolatilityRegime.DefineColor("LowVol", Color.GREEN);
+VolatilityRegime.DefineColor("Neutral", Color.YELLOW);
+VolatilityRegime.AssignValueColor(
+    if highVolatility then VolatilityRegime.Color("HighVol") 
+    else if lowVolatility then VolatilityRegime.Color("LowVol") 
+    else VolatilityRegime.Color("Neutral")
+);
+
+# Smoothed Market Regime Plot
+plot SmoothedMarketRegime = smoothedState;
+SmoothedMarketRegime.SetDefaultColor(Color.CYAN);
+SmoothedMarketRegime.SetLineWeight(2);
+
+# Predicted Market State
+plot PredictedMarketRegime = predictedNextState;
+PredictedMarketRegime.assignValueColor(if predictedNextState == -1 then Color.RED else Color.GREEN);
+PredictedMarketRegime.SetLineWeight(2);
+
+# Add Labels for Transition Probabilities
+AddLabel(1, "P(Trend > Revert): " + AsPercent(probTrendToRevert), Color.RED);
+AddLabel(1, "P(Revert > Trend): " + AsPercent(probRevertToTrend), Color.GREEN);
+AddLabel(1, "P(Neutral > Trend): " + AsPercent(probNeutralToTrend), Color.GREEN);
+AddLabel(1, "P(Neutral > Revert): " + AsPercent(probNeutralToRevert), Color.RED);
+AddLabel(1, "Avg Change (Trend): " + Round(avgPriceChangeTrend, 2), Color.CYAN);
+AddLabel(1, "Avg Change (Revert): " + Round(avgPriceChangeRevert, 2), Color.CYAN);

@@ -1,0 +1,11 @@
+declare lower;
+input length = 10;
+input price = close;
+input nonLinearFactor = 2;
+
+def priceChange = price - price[1];
+def nonLinearChange = Sqrt(AbsValue(priceChange)) * Sign(priceChange) * nonLinearFactor;
+
+plot NonLinearIndicator = Sum(nonLinearChange, length);
+NonLinearIndicator.SetDefaultColor(Color.GREEN);
+NonLinearIndicator.SetLineWeight(2);

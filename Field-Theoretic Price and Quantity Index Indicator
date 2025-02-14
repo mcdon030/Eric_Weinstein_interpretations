@@ -1,0 +1,64 @@
+# ---------------------------
+# Field-Theoretic Price and Quantity Index Indicator
+# ---------------------------
+declare lower;
+script PercentileRank {
+    input data = 0;       # Data input
+    input percentile = 90; # Target percentile
+    input period = 20;    # Lookback period
+
+    def sortedArray = HighestAll(data);  # Placeholder for sorting logic (ThinkScript limitation)
+    
+    # Compute rank index based on percentile
+    def rankIndex = RoundDown((percentile / 100) * period, 0);
+    
+    # Retrieve the percentile value
+    plot PercentileValue = GetValue(sortedArray, rankIndex);
+}
+
+# Inputs  
+input length = 20;
+input sensitivity = 2.0;
+input volumeThreshold = 1.5;  
+
+# Price Index (Carol & Alice - Investment Performance)
+def startPrice = close[length];
+def priceChange = close / startPrice;
+plot PriceIndex = priceChange;
+PriceIndex.SetDefaultColor(Color.CYAN);
+PriceIndex.SetLineWeight(2);  
+
+# Custom Volume-Weighted Price Index (VWMA-based)
+def sumPriceVolume = Sum(close * volume, length);
+def sumVolume = Sum(volume, length);
+def VWMA = sumPriceVolume / sumVolume;
+def volumeWeightedPriceChange = VWMA / startPrice;
+plot VolumeWeightedPriceIndex = volumeWeightedPriceChange;
+VolumeWeightedPriceIndex.SetDefaultColor(Color.BLUE);
+VolumeWeightedPriceIndex.SetLineWeight(2);
+
+# Quantity Index (Bob & Ted - Fund Inflows & Outflows)
+def startVolume = volume[length];
+def volumeChange = volume / startVolume;
+plot QuantityIndex = volumeChange;
+QuantityIndex.SetDefaultColor(Color.ORANGE);
+QuantityIndex.SetLineWeight(2);  
+
+# Path Dependence Signal: Detects divergence between price and quantity  
+def pathDependence = priceChange - volumeChange;
+def percentileSensitivity = PercentileRank(AbsValue(pathDependence), 90, length);
+plot PathDependenceSignal = if AbsValue(pathDependence) > percentileSensitivity then PriceIndex else Double.NaN;
+PathDependenceSignal.SetPaintingStrategy(PaintingStrategy.POINTS);
+PathDependenceSignal.SetDefaultColor(Color.YELLOW);
+PathDependenceSignal.SetLineWeight(3);  
+
+# Volume-Based Breakout Signal  
+def avgVolume = Average(volume, length);
+def highVolume = volume > avgVolume * volumeThreshold;
+plot HighVolumeEvent = if highVolume then PriceIndex + 1 else Double.NaN;
+HighVolumeEvent.SetPaintingStrategy(PaintingStrategy.POINTS);
+HighVolumeEvent.SetDefaultColor(Color.MAGENTA);
+HighVolumeEvent.SetLineWeight(2);  
+
+# Price Coloring  
+PriceIndex.AssignValueColor(if priceChange > volumeChange then Color.GREEN else if volumeChange > priceChange then Color.RED else Color.CURRENT);

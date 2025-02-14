@@ -1,0 +1,15 @@
+# forward testing
+
+declare lower;
+input lookBackPeriod = 20;
+input lookForwardPeriod = 5;
+
+def pastSignal = if close[lookBackPeriod] < close[lookBackPeriod + 1] then 1 else -1;
+def futurePriceChange = close - close[lookForwardPeriod];
+
+plot ForwardTest = if pastSignal * futurePriceChange > 0 then 1 else 0;
+ForwardTest.SetPaintingStrategy(PaintingStrategy.HISTOGRAM);
+ForwardTest.SetLineWeight(3);
+ForwardTest.DefineColor("Correct", Color.GREEN);
+ForwardTest.DefineColor("Incorrect", Color.RED);
+ForwardTest.AssignValueColor(if ForwardTest == 1 then ForwardTest.Color("Correct") else ForwardTest.Color("Incorrect"));

@@ -1,0 +1,135 @@
+input length = 20;
+input volumeThresholdMultiplier = 1;  # Multiplier for high-volume confirmation
+Input Showbreak = no;
+# Variables
+def h = high;
+def l = low;
+def c = close;
+def o = open;
+def v = volume;
+def tcnt = tick_count;
+def bn = BarNumber();
+def nan = Double.NaN;
+
+# Track Highest Highs & Lowest Lows Over Time
+def highestHigh = Highest(h, length);
+def lowestLow = Lowest(l, length);
+
+# Store Lower Highs & Higher Lows Dynamically
+def lowerHigh = if h < highestHigh[1] then h else lowerHigh[1];
+def higherLow = if l > lowestLow[1] then l else higherLow[1];
+
+# **Fix: Stricter Range Compression Threshold (Dynamic)**
+def compressionThreshold = 0.02 + (AbsValue(c- o) / c) * 0.01;
+def rangeCompression = (lowerHigh - higherLow) / lowerHigh < compressionThreshold;  
+
+# **Fix: Require Consecutive Price Inside Triangle for Confirmation**
+def insideTriangle = c < lowerHigh and c > higherLow;
+def consecutiveInside = Sum(insideTriangle, 5) == 5;  # Require 5 bars inside before confirming
+
+# **Fix: Dynamic Triangle Persistence Approach**
+def trianglePersistence = if rangeCompression and consecutiveInside then 5 else Max(trianglePersistence[1] - 1, 0);
+
+# **Final Triangle Pattern Condition**
+def TrianglePattern = if trianglePersistence > 0 then 1 else 0;
+
+# **Breakout Logic: Only After a Triangle Forms**
+def breakoutUpA =if TrianglePattern[1] and c> lowerHigh then 1 else 0;
+def breakoutDownA =if TrianglePattern[1] and c < higherLow then 1 else 0;
+
+# Calculate Average Volume Over the Given Length
+def avgVolume = Average(v, length);
+
+# Define High-Volume Breakout Threshold
+def highVolume = if v > avgVolume * volumeThresholdMultiplier then 1 else 0;
+
+# Plot Triangle Pattern Signal
+plot TriangleSignal = if TrianglePattern then 1 else Double.NaN;
+TriangleSignal.SetPaintingStrategy(PaintingStrategy.BOOLEAN_POINTS);
+TriangleSignal.SetDefaultColor(Color.YELLOW);
+
+# Plot Breakout Signals
+plot BreakoutUp = if breakoutUpA then lowerHigh else Double.NaN;
+BreakoutUp.SetPaintingStrategy(PaintingStrategy.POINTS);
+BreakoutUp.SetDefaultColor(Color.GREEN);
+BreakoutUp.SetLineWeight(4);
+
+plot BreakoutDown = if breakoutDownA  then higherLow else Double.NaN;
+BreakoutDown.SetPaintingStrategy(PaintingStrategy.POINTS);
+BreakoutDown.SetDefaultColor(Color.RED);
+BreakoutDown.SetLineWeight(4);
+
+# Plot High-Volume Breakout Confirmation
+plot HighVolumeBreakout = if (breakoutDownA or breakoutUpA) and highVolume then c else Double.NaN;
+HighVolumeBreakout.SetPaintingStrategy(PaintingStrategy.POINTS);
+HighVolumeBreakout.SetDefaultColor(Color.CYAN);
+HighVolumeBreakout.SetLineWeight(2);
+def cntup =CompoundValue(1, if breakoutUpA then cntup[1]+1 else 0,0);
+def cntdn =CompoundValue(1, if breakoutDownA  then cntdn[1]+1 else 0,0);
+def all_break =  breakoutUpA && !breakoutUpA[1] or breakoutDownA && !breakoutDownA[1] ;#or BreakoutUp && BreakoutUp[1]  (BreakoutDown  && BreakoutDown [1]  ) if cntup==1 or cntdn==1  then 1 else 0
+#addChartBubble( cntup==1 or cntdn==1 ,c,"yes",color.cyan);
+def IsInside = if cntup==1 or cntdn==1  then 1 else 0;
+#addChartBubble( IsInside ,c,"yes", if cntup==1  then color.green else color.red);
+def InsideCnt = if IsInside  then InsideCnt[1] + 1 else InsideCnt[1];
+def Inshigh = CompoundValue(1, if IsInside && !IsInside[1]   then   max(o,c) else Inshigh[1], 1);
+def Inslow = CompoundValue(1,  if IsInside && !IsInside[1]   then min(o,c)   else Inslow[1], 1);
+
+
+def Inshighx;
+def InsLowx;
+def activebox;
+def startbox;
+def stopbox;
+Inshighx = CompoundValue(1, if  !activebox[1] && IsInside  then Inshigh 
+                            else if   Inshigh != Inshigh[1]  then Inshighx[1]
+                            else Inshighx[1], 1 );
+InsLowx = CompoundValue(1, if  !activebox[1] && IsInside  then Inslow 
+                                else if   Inslow != Inslow[1] then InsLowx[1]
+                                else InsLowx[1],1 );
+def BreakH1 = InsideCnt>= 1 && l[1] > Inshighx[1] && l > Inshighx;
+def BreakL1 = InsideCnt>= 1 && H[1] < InsLowx[1]&& H < InsLowx;
+def InsideBr =   (BreakH1 or BreakL1);
+def IsInsideBreak = if IsNaN(InsideBr) then 0 else InsideBr;
+activebox = CompoundValue(1, if bn == 1 then 0
+                            else  if   IsInside && !activebox[1] then 1
+                            else  if   IsInside && activebox[1] && !IsInsideBreak then 1
+                            else  if IsInsideBreak && activebox[1]  then 0
+                            else activebox[1], 0);
+startbox = activebox && !activebox[1];
+stopbox = !activebox && activebox[1];
+
+def isStopbox = If(stopbox , c,  nan); 
+def isSTartbox = If(startbox, c,  nan); 
+
+plot CandeTop =Inshigh;#if Showbreak then (if activebox then  Inshighx else nan) else Inshighx;
+CandeTop.SetLineWeight(2);
+CandeTop.AssignValueColor( if c>Inshighx then color.green else  Color.red);
+CandeTop.SetStyle(Curve.LONG_DASH);
+plot CandleBot =Inslow ;# if Showbreak then (if activebox then  InsLowx  else NaN) else InsLowx;
+CandleBot.SetLineWeight(2);
+CandleBot.AssignValueColor( if c<InsLowx then color.red else  Color.green);
+CandleBot.SetStyle(Curve.LONG_DASH);
+AddCloud(CandleBot, CandeTop, Color.GRAY, Color.GRAY);
+# Cross-Referencing Signal Counts
+script cnt {
+    input signal = 1;
+    def iscount = CompoundValue(1, if signal then iscount[1] + 1 else iscount[1], 0);
+    plot return = iscount;
+}
+
+def cntTriangle = cnt(TrianglePattern);
+def cntBRKup = cnt(breakoutUpA);
+def cntBRKdn = cnt(breakoutDownA);
+def cntHVBRK = cnt((breakoutUpA or breakoutDownA) and highVolume);
+
+# Display Signal Counts
+AddLabel(1, "Total Bars: " + bn, Color.WHITE);
+AddLabel(1, "Triangle Pattern Count: " + cntTriangle, Color.YELLOW);
+AddLabel(1, "Breakout Up Count: " + cntBRKup, Color.GREEN);
+AddLabel(1, "Breakout Down Count: " + cntBRKdn, Color.RED);
+AddLabel(1, "High Volume Breakouts: " + cntHVBRK, Color.CYAN);
+
+
+#addChartBubble(BreakoutUp , BreakoutUp ,"BRK up",color.green);
+#addChartBubble( BreakoutDown , BreakoutDown ,"BRK dn",color.red);
+#addChartBubble(  HighVolumeBreakout ,  HighVolumeBreakout  ,"Volume",color.cyan);

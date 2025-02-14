@@ -1,0 +1,18 @@
+declare lower;
+input length = 20;
+input price = close;
+input symmetryThreshold = 0.1;
+
+def highPrice = Highest(high, length);
+def lowPrice = Lowest(low, length);
+def midPrice = (highPrice + lowPrice) / 2;
+
+def priceDistance = AbsValue(price - midPrice);
+def symmetry = if priceDistance < (highPrice - lowPrice) * symmetryThreshold then 1 else 0;
+
+plot SymmetryIndicator = symmetry;
+SymmetryIndicator.SetPaintingStrategy(PaintingStrategy.HISTOGRAM);
+SymmetryIndicator.SetLineWeight(3);
+SymmetryIndicator.DefineColor("HighSymmetry", Color.GREEN);
+SymmetryIndicator.DefineColor("LowSymmetry", Color.RED);
+SymmetryIndicator.AssignValueColor(if symmetry == 1 then SymmetryIndicator.Color("HighSymmetry") else SymmetryIndicator.Color("LowSymmetry"));

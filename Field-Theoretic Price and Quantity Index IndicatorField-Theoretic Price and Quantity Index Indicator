@@ -1,0 +1,83 @@
+# ---------------------------
+# Field-Theoretic Price and Quantity Index Indicator
+# Inspired by Eric Weinstein's critique of traditional price indices
+# ---------------------------
+
+# Purpose:  
+# Separates price movement impact from quantity (volume, inflows, outflows).  
+# Captures market path dependence rather than assuming a "flat" market.  
+# Highlights how funds or assets are affected by investment performance vs. inflows.  
+
+# Inputs  
+# ---------------------------
+# Custom Percentile Function
+# ---------------------------
+
+script PercentileRank {
+    input data = 0;       # Data input
+    input percentile = 90; # Target percentile
+    input period = 20;    # Lookback period
+
+    def sortedArray = HighestAll(data);  # Placeholder for sorting logic (ThinkScript limitation)
+    
+    # Compute rank index based on percentile
+    def rankIndex = RoundDown((percentile / 100) * period, 0);
+    
+    # Retrieve the percentile value
+    plot PercentileValue = GetValue(sortedArray, rankIndex);
+}
+
+# ---------------------------
+# Field-Theoretic Price and Quantity Index Indicator
+# ---------------------------
+
+input length = 20;  
+input sensitivity = 2.0;  
+input volumeThreshold = 1.5;  
+
+def startPrice = close[length];  
+def priceChange = close / startPrice;  
+plot PriceIndex = priceChange;  
+PriceIndex.SetDefaultColor(Color.CYAN);  
+PriceIndex.SetLineWeight(2);  
+
+def startVolume = volume[length];  
+def volumeChange = volume / startVolume;  
+plot QuantityIndex = volumeChange;  
+QuantityIndex.SetDefaultColor(Color.ORANGE);  
+QuantityIndex.SetLineWeight(2);  
+
+# Path Dependence Calculation
+def pathDependence = priceChange - volumeChange;  
+
+# Compute dynamic percentile-based sensitivity
+def percentileSensitivity = PercentileRank(AbsValue(pathDependence), 90, length);
+
+# Plot Path Dependence Signal with dynamic sensitivity
+plot PathDependenceSignal = if AbsValue(pathDependence) > percentileSensitivity then PriceIndex else Double.NaN;  
+PathDependenceSignal.SetPaintingStrategy(PaintingStrategy.POINTS);  
+PathDependenceSignal.SetDefaultColor(Color.YELLOW);  
+PathDependenceSignal.SetLineWeight(3);  
+
+# Volume-Based Breakout Signal  
+def avgVolume = Average(volume, length);  
+def highVolume = volume > avgVolume * volumeThreshold;  
+plot HighVolumeEvent = if highVolume then PriceIndex + 1 else Double.NaN;  
+HighVolumeEvent.SetPaintingStrategy(PaintingStrategy.POINTS);  
+HighVolumeEvent.SetDefaultColor(Color.MAGENTA);  
+HighVolumeEvent.SetLineWeight(2);  
+
+# Price Coloring
+PriceIndex.assignValueColor(if priceChange > volumeChange then Color.GREEN else if volumeChange > priceChange then Color.RED else Color.CURRENT);  
+ 
+
+# ---------------------------
+# Interpretation:
+# - **Price Index (Cyan Line):** Measures how price evolves over time relative to a baseline.
+# - **Quantity Index (Orange Line):** Measures inflows/outflows (volume) over time relative to a baseline.
+# - **Path Dependence Signal (Yellow Dots):** Highlights divergence between price and quantity, showing market inefficiencies. Now with dynamic sensitivity.
+# - **High Volume Events (Magenta Dots):** Indicates significant inflows or outflows, potentially affecting future market moves.
+# - **Price Coloring:** 
+#   - **Green:** Strong investment performance (Price outpacing volume).  
+#   - **Red:** Weak investment performance (Volume outpacing price).  
+# ---------------------------

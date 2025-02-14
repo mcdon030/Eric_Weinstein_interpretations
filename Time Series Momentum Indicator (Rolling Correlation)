@@ -1,0 +1,31 @@
+# ---------------------------
+# Time Series Momentum Indicator (Rolling Correlation)
+# ---------------------------
+declare lower;
+input length = 20;
+
+# Compute Price and Volume Change  
+def startPrice = close[length];  
+def priceChange = close / startPrice - 1;  
+
+def startVolume = volume[length];  
+def volumeChange = volume / startVolume - 1;  
+
+# Compute Rolling Means  
+def meanPriceChange = Average(priceChange, length);
+def meanVolumeChange = Average(volumeChange, length);
+
+# Compute Rolling Covariance  
+def covariance = Average((priceChange - meanPriceChange) * (volumeChange - meanVolumeChange), length);
+
+# Compute Rolling Standard Deviations  
+def stdDevPrice = StDev(priceChange, length);
+def stdDevVolume = StDev(volumeChange, length);
+
+# Compute Rolling Correlation  
+def rollingCorrelation = covariance / (stdDevPrice * stdDevVolume);
+
+# Plot Momentum Correlation  
+plot MomentumCorrelation = rollingCorrelation;
+MomentumCorrelation.assignValueColor(color.MAGENTA);
+MomentumCorrelation.SetLineWeight(2);

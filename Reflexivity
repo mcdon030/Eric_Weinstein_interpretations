@@ -1,0 +1,15 @@
+# Reflexivity
+declare lower;
+
+input length = 14;
+def priceChange = close - close[length];
+def sentiment = RSI(length);
+def reflexivity = priceChange * sentiment;
+
+plot ReflexivityIndex = reflexivity;
+ReflexivityIndex.SetDefaultColor(Color.CYAN);
+ReflexivityIndex.SetLineWeight(2);
+
+plot ZeroLine = 0;
+ZeroLine.SetDefaultColor(Color.GRAY);
+ZeroLine.SetStyle(Curve.SHORT_DASH);

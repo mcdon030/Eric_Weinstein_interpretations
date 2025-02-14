@@ -1,0 +1,50 @@
+# stage analysis
+
+declare lower;
+
+def smaLength = 30;
+def withinRangePercent = 5;
+
+def ma = Average(close, smaLength);
+def withinRange = ma * withinRangePercent / 100;
+
+def prevMa = ma[1];
+def prevClose = close[1];
+
+def myBodyLow = Min(open, close);
+def myBodyHigh = Max(open, close);
+
+def trendUp = myBodyLow > ma + withinRange and prevMa < ma;
+def trendDown = myBodyHigh < ma - withinRange and prevMa > ma;
+
+def currentTrend = CompoundValue(1, 
+    if trendUp then 1 else if trendDown then -1 else currentTrend[1], 0);
+
+def stage2 = currentTrend == 1;
+def stage4 = currentTrend == -1;
+def stage3 = !stage2 and !stage4 and close > ma;
+def stage1 = !stage2 and !stage4 and close <= ma;
+
+AssignPriceColor(if stage2 then Color.GREEN
+                 else if stage3 then Color.ORANGE
+                 else if stage4 then Color.RED
+                 else Color.LIGHT_GREEN);
+
+plot WeeklyMA = ma;
+WeeklyMA.SetDefaultColor(Color.WHITE);
+
+plot Stage2Signal = if stage2 then 1 else Double.NaN;
+Stage2Signal.SetPaintingStrategy(PaintingStrategy.BOOLEAN_ARROW_UP);
+Stage2Signal.SetDefaultColor(Color.GREEN);
+
+plot Stage3Signal = if stage3 then 1 else Double.NaN;
+Stage3Signal.SetPaintingStrategy(PaintingStrategy.BOOLEAN_ARROW_UP);
+Stage3Signal.SetDefaultColor(Color.ORANGE);
+
+plot Stage4Signal = if stage4 then 1 else Double.NaN;
+Stage4Signal.SetPaintingStrategy(PaintingStrategy.BOOLEAN_ARROW_DOWN);
+Stage4Signal.SetDefaultColor(Color.RED);
+
+plot Stage1Signal = if stage1 then 1 else Double.NaN;
+Stage1Signal.SetPaintingStrategy(PaintingStrategy.BOOLEAN_ARROW_DOWN);
+Stage1Signal.SetDefaultColor(Color.LIGHT_GREEN);
